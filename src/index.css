@@ -46,7 +46,7 @@
 
   body {
     font-family: var(--font-body, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-    background-color: #f8fafc;
+    background-color: #fafafd;
     color: #0f172a;
     overflow-x: clip;
   }
@@ -78,4 +78,133 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8;
+}
+
+/* ─── Aurora Background (Exact from Techfest Profile) ─── */
+.original-aurora-bg,
+.cs-aurora-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  background-color: #fafafd;
+  overflow: hidden;
+}
+
+:is(.dark) .original-aurora-bg,
+:is(.dark) .cs-aurora-bg {
+  background-color: #09090b;
+}
+
+.aurora-gradient-layer,
+.cs-aurora-gradient {
+  position: absolute;
+  top: -15vh;
+  left: -15vw;
+  width: 130vw;
+  height: 130vh;
+  background:
+    radial-gradient(circle at 47vw 0vh, #C089FF 0%, transparent 55vw),
+    radial-gradient(circle at 105vw -30vh, #2a3fff 0%, transparent 65vw);
+  opacity: 0.95;
+  animation: gentle-drift 10s infinite alternate ease-in-out;
+}
+
+:is(.dark) .aurora-gradient-layer,
+:is(.dark) .cs-aurora-gradient {
+  background:
+    radial-gradient(circle at 47vw 0vh, rgba(168, 85, 247, 0.25) 0%, transparent 55vw),
+    radial-gradient(circle at 105vw -30vh, rgba(59, 130, 246, 0.25) 0%, transparent 65vw);
+  opacity: 0.8;
+}
+
+@keyframes gentle-drift {
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(6vw, 8vh);
+  }
+}
+
+.glassy-frames-container,
+.cs-frames,
+.cs-frames-1,
+.glassy-frames-container2,
+.cs-frames-2 {
+  position: absolute;
+  width: 110vw;
+  display: flex;
+  gap: 1vw;
+  z-index: 1;
+  pointer-events: none;
+  transform: skewY(12deg);
+}
+
+.glassy-frames-container,
+.cs-frames-1 {
+  top: -25vh;
+  left: -5vw;
+  animation: gentle-float 5s infinite alternate ease-in-out;
+}
+
+.glassy-frames-container2,
+.cs-frames-2 {
+  top: -50vh;
+  left: 5vw;
+  animation: gentle-float2 5s infinite alternate ease-in-out;
+}
+
+@keyframes gentle-float {
+  0% {
+    transform: skewY(12deg) translateY(0);
+  }
+  100% {
+    transform: skewY(12deg) translateY(4vh);
+  }
+}
+
+@keyframes gentle-float2 {
+  0% {
+    transform: skewY(12deg) translateY(4vh);
+  }
+  100% {
+    transform: skewY(12deg) translateY(0);
+  }
+}
+
+.glassy-frame,
+.cs-frame {
+  flex: 0 0 clamp(100px, 17vw, 260px);
+  height: 65vh;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
+  border-top: 1px solid rgba(255, 255, 255, 0.8);
+  border-left: 1px solid rgba(255, 255, 255, 0.8);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08), inset 0 0 20px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border-radius: 4px;
+}
+
+:is(.dark) .glassy-frame,
+:is(.dark) .cs-frame {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  border-right: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.02);
 }

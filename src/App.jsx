@@ -26,6 +26,9 @@ import ViewToggle from './components/ViewToggle';
 import { ListItemSkeleton } from './components/Skeleton';
 import BadgeInspectionModal from './components/BadgeInspectionModal';
 import SyllabusInfoModal from './components/SyllabusInfoModal';
+import AuroraBackground from './components/AuroraBackground';
+import SocialDock from './components/SocialDock';
+import ContactDock from './components/ContactDock';
 
 const STORAGE_KEY_LEADERBOARD = 'gcsl_persisted_leaderboard_v1';
 const STORAGE_KEY_LAST_SYNCED = 'gcsl_persisted_last_synced_v1';
@@ -443,41 +446,50 @@ export default function App() {
       });
   }, [participants, searchQuery, sortBy]);
 
-  const handleParticipantClick = (e, profileUrl) => {
-    if (e.target.closest('button')) return;
-    if (profileUrl) {
-      window.open(profileUrl, '_blank', 'noopener,noreferrer');
-    }
+  const handleParticipantClick = (e, participant) => {
+    if (e.target.closest('button') || e.target.closest('a')) return;
+    setInspectParticipant(participant);
   };
 
   const totalLabsCount = syllabusLabs.length;
 
   return (
-    <div className="min-h-screen pb-24 bg-slate-50 dark:bg-slate-950 transition-colors duration-500 selection:bg-google-blue/20 selection:text-google-blue">
-      {/* Top Brand Header Bar with Logo */}
-      <header className="w-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-40 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img
-              src="/gdgoc_sati_logo.png"
-              alt="GDG on Campus SATI"
-              className="h-15 absolute sm:left-32 right-25 sm:h-19 w-auto object-contain"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen pb-24 relative overflow-x-clip selection:bg-google-blue/20 selection:text-google-blue transition-colors duration-500">
+      {/* Exact Techfest Animated Aurora Background with Floating Glass Frames */}
+      <AuroraBackground />
 
-      {/* Header Banner - Exact UI matching GDGOC SATI Leaderboard */}
-      <div className="relative bg-slate-50/70 dark:bg-slate-900/40 pt-8 pb-10 border-b border-slate-200/60 dark:border-slate-800/60 overflow-hidden">
+      {/* Query / Contact Dock (Left-Side Center Vertical) */}
+      <ContactDock />
+
+      {/* Social Handles Dock (Right-Side Center Vertical) */}
+      <SocialDock />
+
+      {/* Main Page Content Layer */}
+      <div className="relative z-10">
+        {/* Top Brand Header Bar with Logo */}
+        <header className="w-full  z-30 transition-colors">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img
+                src="/gdgoc_sati_logo_black.png"
+                alt="GDG on Campus SATI"
+                className="h-10 sm:h-12 absolute sm:left-50 right-33  w-auto object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          </div>
+        </header>
+
+        {/* Header Banner - Exact UI matching GDGOC SATI Leaderboard */}
+        <div className="relative pt-8 pb-10 border-b border-slate-200/50 dark:border-slate-800/50 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-30 pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-google-blue border border-google-blue/20 text-[11px] sm:text-xs font-bold uppercase tracking-wider mb-4"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-google-green border border-google-blue/20 text-[11px] sm:text-xs font-bold uppercase tracking-wider mb-4"
           >
             <span>Study Jam Leaderboard</span>
           </motion.div>
@@ -538,7 +550,7 @@ export default function App() {
       {/* Main Container with Sticky Controls Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-3">
         {/* Sticky Controls Bar */}
-        <div className="sticky top-[68px] z-30 flex flex-col sm:flex-row items-center justify-between gap-2 py-1.5 px-3 sm:px-4 rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-md mb-6">
+        <div className="sticky top-[34px] z-20 flex flex-col sm:flex-row items-center justify-between gap-2 py-1.5 px-3 sm:px-4 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-md mb-6">
           {/* Search Input synchronized with URL ?q= */}
           <div className="relative w-full sm:w-80 md:w-106">
             <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
@@ -649,11 +661,11 @@ export default function App() {
           </div>
         ) : viewMode === 'list' ? (
           /* Table / List View */
-          <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="bg-white/85 dark:bg-slate-900/85 backdrop-blur-md rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs sm:text-sm">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <tr className="bg-slate-50/70 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     <th className="py-3 px-3 sm:px-4 w-14 sm:w-16">S. No.</th>
                     <th className="py-3 px-4 min-w-[240px]">Participant</th>
                     <th className="py-3 px-4 min-w-[200px]">Syllabus Badges Completed</th>
@@ -664,12 +676,8 @@ export default function App() {
                   {filteredParticipants.map((p, index) => (
                     <tr
                       key={p.id}
-                      onClick={(e) => handleParticipantClick(e, p.profileUrl)}
-                      title={
-                        p.profileUrl
-                          ? 'Click to view Google Cloud Skills Boost Profile'
-                          : undefined
-                      }
+                      onClick={(e) => handleParticipantClick(e, p)}
+                      title="Click to inspect badges"
                       className="hover:bg-blue-50/60 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer"
                     >
                       {/* Serial Number */}
@@ -752,13 +760,9 @@ export default function App() {
             {filteredParticipants.map((p, index) => (
               <div
                 key={p.id}
-                onClick={(e) => handleParticipantClick(e, p.profileUrl)}
-                title={
-                  p.profileUrl
-                    ? 'Click to view Google Cloud Skills Boost Profile'
-                    : undefined
-                }
-                className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-google-blue/40 transition-all flex flex-col justify-between cursor-pointer group"
+                onClick={(e) => handleParticipantClick(e, p)}
+                title="Click to inspect badges"
+                className="bg-white/85 dark:bg-slate-900/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-google-blue/40 transition-all flex flex-col justify-between cursor-pointer group"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -856,6 +860,7 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 }
