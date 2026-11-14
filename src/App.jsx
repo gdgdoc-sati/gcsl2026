@@ -9,10 +9,14 @@ import {
   FaSyncAlt,
   FaExclamationTriangle,
   FaUserGraduate,
+  FaRoute,
+  FaGithub,
 } from 'react-icons/fa';
 import {
   DEFAULT_PARTICIPANT_SHEET_URL,
   DEFAULT_SYLLABUS_SOURCE_URL,
+  DEFAULT_ROADMAP_SHEET_URL,
+  DEFAULT_GITHUB_SCRIPTS_URL,
   DEFAULT_EVENT_TITLE,
   convertToCsvUrl,
   parseParticipantsFromCsv,
@@ -62,6 +66,21 @@ export default function App() {
   const eventTitle = DEFAULT_EVENT_TITLE;
   const participantSheetUrl = DEFAULT_PARTICIPANT_SHEET_URL;
   const syllabusSourceUrl = DEFAULT_SYLLABUS_SOURCE_URL;
+  const roadmapSheetUrl = DEFAULT_ROADMAP_SHEET_URL;
+  const githubScriptsUrl = DEFAULT_GITHUB_SCRIPTS_URL;
+
+  // Track if user is at the top of the page (for mobile tooltips smooth hide/show)
+  const [isAtTop, setIsAtTop] = useState(true);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsAtTop(window.scrollY <= 30);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Initialize query parameters from browser URL
   const initialUrlState = useMemo(() => readInitialUrlState(), []);
@@ -217,6 +236,11 @@ export default function App() {
     participantsRef.current = participants;
   }, [participants]);
 
+  const syllabusLabsRef = useRef(syllabusLabs);
+  useEffect(() => {
+    syllabusLabsRef.current = syllabusLabs;
+  }, [syllabusLabs]);
+
   // Helper to persist current participant state to localStorage
   const persistParticipants = useCallback((list) => {
     if (typeof window !== 'undefined' && Array.isArray(list) && list.length > 0) {
@@ -278,7 +302,7 @@ export default function App() {
         lastSyncedAt: null,
       });
 
-      const currentLabs = syllabusLabs;
+      const currentLabs = syllabusLabsRef.current;
       let completed = 0;
       // Controlled concurrency of 2 workers with 150ms pacing between requests
       const CONCURRENCY = 2;
@@ -344,7 +368,7 @@ export default function App() {
       }));
       setLastSyncedAt(now);
     },
-    [syllabusLabs, persistParticipants]
+    [persistParticipants]
   );
 
   // 3. Fetch Google Sheet on Mount and automatically sync fresh changes
@@ -369,8 +393,8 @@ export default function App() {
         throw new Error('Spreadsheet returned empty content.');
       }
 
-      // Parse current rows from sheet
-      const freshParsed = parseParticipantsFromCsv(csvText, syllabusLabs);
+      // Parse current rows from sheet (use ref so we get latest syllabus even if it loaded late)
+      const freshParsed = parseParticipantsFromCsv(csvText, syllabusLabsRef.current);
 
       // Merge with previously persisted participant data to retain verified progress
       const existingMap = new Map();
@@ -410,20 +434,25 @@ export default function App() {
     } finally {
       setLoadingSheet(false);
     }
-  }, [participantSheetUrl, syllabusLabs, persistParticipants]);
+  }, [participantSheetUrl, persistParticipants]);
 
   // Trigger Sheet load on open
   useEffect(() => {
     fetchAndSyncOnOpen();
   }, [fetchAndSyncOnOpen]);
 
-  // When participant list is ready, perform one on-open sync so latest data is fetched
+  // When participant list AND syllabus are ready, perform one on-open sync so latest data is fetched
   useEffect(() => {
-    if (participants.length > 0 && !hasTriggeredInitialSync.current && !syncStatus.syncing) {
+    if (
+      participants.length > 0 &&
+      syllabusLabs.length > 0 &&
+      !hasTriggeredInitialSync.current &&
+      !syncStatus.syncing
+    ) {
       hasTriggeredInitialSync.current = true;
       syncLiveProfiles(false);
     }
-  }, [participants.length, syncLiveProfiles, syncStatus.syncing]);
+  }, [participants.length, syllabusLabs.length, syncLiveProfiles, syncStatus.syncing]);
 
   // Filtered and Sorted participants
   const filteredParticipants = useMemo(() => {
@@ -459,10 +488,10 @@ export default function App() {
       <AuroraBackground />
 
       {/* Query / Contact Dock (Left-Side Center Vertical) */}
-      <ContactDock />
+      <ContactDock isAtTop={isAtTop} />
 
       {/* Social Handles Dock (Right-Side Center Vertical) */}
-      <SocialDock />
+      <SocialDock isAtTop={isAtTop} />
 
       {/* Main Page Content Layer */}
       <div className="relative z-10">
@@ -513,7 +542,7 @@ export default function App() {
           </motion.p>
 
           {/* Action buttons inside header */}
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-6 grid grid-cols-2 sm:flex items-center justify-center gap-3">
             <button
               onClick={() => setShowSyllabusModal(true)}
               className="px-4 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-google-blue border border-blue-200 dark:border-blue-800 hover:bg-google-blue hover:text-white font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer"
@@ -521,6 +550,36 @@ export default function App() {
               <FaBookOpen size={11} />
               <span>Syllabus Labs ({totalLabsCount})</span>
             </button>
+
+            {/* Roadmap Sheet Button */}
+            {roadmapSheetUrl && (
+              <a
+                href={roadmapSheetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-600 hover:text-white font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                title="Open Google Cloud Study Learn Roadmap Sheet"
+              >
+                <FaRoute size={12} />
+                <span>Roadmap Sheet</span>
+                <FaExternalLinkAlt size={9} className="opacity-70" />
+              </a>
+            )}
+
+            {/* GitHub Scripts Button */}
+            {githubScriptsUrl && (
+              <a
+                href={githubScriptsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 dark:text-slate-100 border border-slate-700/60 hover:bg-slate-800 dark:hover:bg-slate-700 font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                title="Open Facilitator Program Solutions GitHub Repository"
+              >
+                <FaGithub size={13} />
+                <span>GitHub Scripts</span>
+                <FaExternalLinkAlt size={9} className="opacity-70" />
+              </a>
+            )}
 
             {/* Manual Sync Data Button - clicking forces fresh sync */}
             <button

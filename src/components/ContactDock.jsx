@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FaWhatsapp, FaEnvelope, FaCopy, FaCheck } from 'react-icons/fa';
 
 const CONTACTS = [
@@ -40,8 +40,26 @@ const CONTACTS = [
   },
 ];
 
-export default function ContactDock() {
+export default function ContactDock({ isAtTop = true }) {
   const [copiedId, setCopiedId] = useState(null);
+  const [activeTooltipIndex, setActiveTooltipIndex] = useState(0);
+
+  // Tooltips appear one by one with 1 second delay; previous disappears when another appears.
+  // Happens only when user is at the top of the page.
+  useEffect(() => {
+    if (!isAtTop) {
+      setActiveTooltipIndex(-1);
+      return;
+    }
+
+    setActiveTooltipIndex(0);
+
+    const timer = setInterval(() => {
+      setActiveTooltipIndex((prev) => (prev + 1) % CONTACTS.length);
+    }, 1500); // 1 second delay
+
+    return () => clearInterval(timer);
+  }, [isAtTop]);
 
   const handleCopy = (e, contact) => {
     e.preventDefault();
@@ -58,14 +76,19 @@ export default function ContactDock() {
   return (
     <aside
       aria-label="Contact and Query Information"
-      className="fixed left-0 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-1.5 sm:gap-2.5 py-2.5 sm:py-3 px-1 sm:px-2 rounded-r-2xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-l-0 border-slate-200/80 dark:border-slate-800 shadow-xl shadow-slate-900/5 select-none"
+      className={`fixed left-0 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-1.5 sm:gap-2.5 py-2.5 sm:py-3 px-1 sm:px-2 rounded-r-2xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-l-0 border-slate-200/80 dark:border-slate-800 shadow-xl shadow-slate-900/5 select-none transition-all duration-300 ease-out ${
+        isAtTop
+          ? 'translate-x-0 opacity-100 pointer-events-auto'
+          : '-translate-x-full opacity-0 pointer-events-none md:translate-x-0 md:opacity-100 md:pointer-events-auto'
+      }`}
     >
       <div className="text-[8px] sm:text-[9px] font-black tracking-widest text-slate-400 uppercase py-0.5 hidden sm:block">
         Query
       </div>
-      {CONTACTS.map((item) => {
+      {CONTACTS.map((item, index) => {
         const Icon = item.icon;
         const isCopied = copiedId === item.id;
+        const isCurrentActive = isAtTop && activeTooltipIndex === index;
 
         return (
           <div key={item.id} className="relative group flex items-center justify-center">
@@ -79,14 +102,18 @@ export default function ContactDock() {
               <Icon className="text-[14px] sm:text-[16px]" />
             </a>
 
-            {/* Flyout Tooltip — desktop only (hidden below md) */}
+            {/* Flyout Tooltip — desktop only (hidden on mobile, undisturbed on desktop) */}
             <div
               role="tooltip"
-              className="hidden md:block pointer-events-none absolute left-full ml-3 top-1/2 -translate-y-1/2 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-50 whitespace-nowrap"
+              className={`hidden md:block absolute left-full ml-2 sm:ml-3 top-1/2 -translate-y-1/2 transition-all duration-300 ease-out z-50 whitespace-nowrap ${
+                isCurrentActive
+                  ? 'opacity-100 translate-x-0 pointer-events-auto'
+                  : 'opacity-0 -translate-x-2 pointer-events-none md:group-hover:opacity-100 md:group-hover:translate-x-0 md:group-hover:pointer-events-auto'
+              }`}
             >
-              <div className="relative px-3.5 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs shadow-xl flex flex-col gap-0.5 pointer-events-auto">
-                <div className="flex items-center justify-between gap-3">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${item.badgeColor}`}>
+              <div className="relative px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs shadow-xl flex flex-col gap-0.5 pointer-events-auto">
+                <div className="flex items-center justify-between gap-2.5">
+                  <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${item.badgeColor}`}>
                     {item.name}
                   </span>
                   <button
@@ -95,16 +122,16 @@ export default function ContactDock() {
                     className="p-1 rounded hover:bg-slate-800 dark:hover:bg-slate-100 text-slate-400 hover:text-white dark:hover:text-slate-900 transition-colors cursor-pointer"
                   >
                     {isCopied ? (
-                      <FaCheck size={10} className="text-emerald-400" />
+                      <FaCheck size={9} className="text-emerald-400" />
                     ) : (
-                      <FaCopy size={10} />
+                      <FaCopy size={9} />
                     )}
                   </button>
                 </div>
-                <span className="font-mono text-xs font-semibold tracking-wide">
+                <span className="font-mono text-[11px] sm:text-xs font-semibold tracking-wide">
                   {item.value}
                 </span>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                <span className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500">
                   {item.actionLabel}
                 </span>
                 {/* Arrow */}

@@ -11,6 +11,12 @@ export const DEFAULT_PARTICIPANT_SHEET_URL =
 export const DEFAULT_SYLLABUS_SOURCE_URL =
   import.meta.env?.VITE_SYLLABUS_SHEET_URL || '';
 
+export const DEFAULT_ROADMAP_SHEET_URL =
+  import.meta.env?.VITE_ROADMAP_SHEET_URL || '';
+
+export const DEFAULT_GITHUB_SCRIPTS_URL =
+  import.meta.env?.VITE_GITHUB_SCRIPTS_URL || '';
+
 export const DEFAULT_EVENT_TITLE =
   import.meta.env?.VITE_EVENT_TITLE || 'Google Cloud Study Learn 2026';
 
