@@ -6,7 +6,7 @@ import { DEFAULT_SYLLABUS_LABS } from '../data/cloudStudySyllabus';
 export const BadgeInspectionModal = ({ participant, syllabusLabs, onClose }) => {
   if (!participant) return null;
 
-  const { name, avatar, profileUrl, completedLabs, verifiedCount, totalProfileBadges } = participant;
+  const { name, avatar, profileUrl, completedLabs, verifiedCount, totalProfileBadges, cloudProfileName } = participant;
   const labs = Array.isArray(syllabusLabs) && syllabusLabs.length > 0 ? syllabusLabs : DEFAULT_SYLLABUS_LABS;
   const completedMap = new Map();
   (completedLabs || []).forEach((l) => {
@@ -42,6 +42,11 @@ export const BadgeInspectionModal = ({ participant, syllabusLabs, onClose }) => 
                   {verifiedCount} / {labs.length} Labs
                 </span>
               </h3>
+              {cloudProfileName && cloudProfileName.trim().toLowerCase() !== name.trim().toLowerCase() && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  Cloud Username: <span className="font-semibold text-slate-700 dark:text-slate-300">{cloudProfileName}</span>
+                </p>
+              )}
               {profileUrl && (
                 <a
                   href={profileUrl}

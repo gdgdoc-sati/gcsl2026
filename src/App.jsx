@@ -11,6 +11,7 @@ import {
   FaUserGraduate,
   FaRoute,
   FaGithub,
+  FaCheckCircle,
 } from 'react-icons/fa';
 import {
   DEFAULT_PARTICIPANT_SHEET_URL,
@@ -37,18 +38,16 @@ import ContactDock from './components/ContactDock';
 const STORAGE_KEY_LEADERBOARD = 'gcsl_persisted_leaderboard_v1';
 const STORAGE_KEY_LAST_SYNCED = 'gcsl_persisted_last_synced_v1';
 const STORAGE_KEY_SYLLABUS = 'gcsl_syllabus_cache_v1';
+const STORAGE_KEY_VIEW_MODE = 'gcsl_view_mode_preference_v1';
 
-// Helper to read initial URL query parameters safely
+// Helper to read initial URL query parameters safely (q and sort only, no view)
 const readInitialUrlState = () => {
   if (typeof window === 'undefined') {
-    return { q: '', view: 'list', sort: 'BADGES_DESC' };
+    return { q: '', sort: 'BADGES_DESC' };
   }
   try {
     const params = new URLSearchParams(window.location.search);
     const q = params.get('q') || params.get('search') || '';
-
-    const rawView = params.get('view')?.toLowerCase();
-    const view = rawView === 'grid' ? 'grid' : 'list';
 
     const rawSort = params.get('sort')?.toUpperCase();
     const sort =
@@ -56,9 +55,9 @@ const readInitialUrlState = () => {
         ? 'NAME_ASC'
         : 'BADGES_DESC';
 
-    return { q, view, sort };
+    return { q, sort };
   } catch {
-    return { q: '', view: 'list', sort: 'BADGES_DESC' };
+    return { q: '', sort: 'BADGES_DESC' };
   }
 };
 
@@ -85,11 +84,38 @@ export default function App() {
   // Initialize query parameters from browser URL
   const initialUrlState = useMemo(() => readInitialUrlState(), []);
 
-  // Search, Sort & View states synchronized with URL query params
+  // Search & Sort states synchronized with URL query params
   const [searchQuery, setSearchQuery] = useState(initialUrlState.q);
   const [sortBy, setSortBy] = useState(initialUrlState.sort); // 'BADGES_DESC' | 'NAME_ASC'
-  const [viewMode, setViewMode] = useState(initialUrlState.view); // 'list' | 'grid'
+
+  // Initialize view mode from localStorage so it persists across refreshes without URL query parameter
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedView = localStorage.getItem(STORAGE_KEY_VIEW_MODE);
+        if (savedView === 'grid' || savedView === 'list') {
+          return savedView;
+        }
+      } catch {}
+    }
+    return 'list';
+  });
+
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+
+  // Clean up any legacy/existing 'view' query param from the URL if present
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.has('view')) {
+        currentUrl.searchParams.delete('view');
+        const newSearch = currentUrl.searchParams.toString();
+        const newUrl = `${currentUrl.pathname}${newSearch ? `?${newSearch}` : ''}${currentUrl.hash}`;
+        window.history.replaceState(null, '', newUrl);
+      }
+    } catch {}
+  }, []);
 
   // Helper to update URL query parameters cleanly without full-page reloads
   const updateUrlParams = useCallback((updates) => {
@@ -105,6 +131,9 @@ export default function App() {
           params.set(key, value);
         }
       });
+
+      // Ensure 'view' is never written to URL parameters, and clean it if present
+      params.delete('view');
 
       // Remove legacy 'search' key if 'q' is set
       if (updates.q !== undefined) {
@@ -137,9 +166,8 @@ export default function App() {
   // Synchronize state when user navigates using Browser Back/Forward buttons
   useEffect(() => {
     const handlePopState = () => {
-      const { q, view, sort } = readInitialUrlState();
+      const { q, sort } = readInitialUrlState();
       setSearchQuery(q);
-      setViewMode(view);
       setSortBy(sort);
     };
 
@@ -147,11 +175,17 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Handler for view mode changes (List / Grid) with URL update
+  // Handler for view mode changes (List / Grid) - persisted in localStorage without modifying URL
   const handleViewChange = useCallback((newView) => {
     setViewMode(newView);
-    updateUrlParams({ view: newView });
-  }, [updateUrlParams]);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY_VIEW_MODE, newView);
+      } catch (e) {
+        console.warn('Failed to save view mode to localStorage:', e);
+      }
+    }
+  }, []);
 
   // Handler for sort option changes with URL update
   const handleSortChange = useCallback((newSort) => {
@@ -318,7 +352,9 @@ export default function App() {
                 if (item.id === p.id || item.profileUrl === p.profileUrl) {
                   return {
                     ...item,
-                    name: profileData.name || item.name,
+                    // Retain sheet name, do NOT overwrite with cloud profile username
+                    name: item.sheetName || item.name,
+                    cloudProfileName: profileData.name || item.cloudProfileName || '',
                     avatar: profileData.avatar || item.avatar,
                     completedLabs: matchRes.completedLabs,
                     verifiedCount: matchRes.verifiedCount,
@@ -411,7 +447,9 @@ export default function App() {
         if (existing && existing.liveVerified) {
           return {
             ...item,
-            name: existing.name || item.name,
+            name: item.name, // Always use participant name from Google Sheet
+            sheetName: item.name,
+            cloudProfileName: existing.cloudProfileName || existing.name || '',
             avatar: existing.avatar || item.avatar,
             completedLabs: existing.completedLabs || [],
             verifiedCount: existing.verifiedCount || 0,
@@ -420,7 +458,10 @@ export default function App() {
             liveVerified: true,
           };
         }
-        return item;
+        return {
+          ...item,
+          sheetName: item.name,
+        };
       });
 
       setParticipants(merged);
@@ -460,7 +501,10 @@ export default function App() {
       .filter((p) => {
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase().trim();
-          return p.name.toLowerCase().includes(q);
+          return (
+            (p.name && p.name.toLowerCase().includes(q)) ||
+            (p.cloudProfileName && p.cloudProfileName.toLowerCase().includes(q))
+          );
         }
         return true;
       })
@@ -481,6 +525,11 @@ export default function App() {
   };
 
   const totalLabsCount = syllabusLabs.length;
+
+  // Count of participants who completed 10 / 10 labs according to syllabus
+  const completedTenCount = useMemo(() => {
+    return participants.filter((p) => (p.verifiedCount || 0) >= 10).length;
+  }, [participants]);
 
   return (
     <div className="min-h-screen pb-24 relative overflow-x-clip selection:bg-google-blue/20 selection:text-google-blue transition-colors duration-500">
@@ -611,7 +660,7 @@ export default function App() {
         {/* Sticky Controls Bar */}
         <div className="sticky top-[34px] z-20 flex flex-col sm:flex-row items-center justify-between gap-2 py-1.5 px-3 sm:px-4 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-md mb-6">
           {/* Search Input synchronized with URL ?q= */}
-          <div className="relative w-full sm:w-80 md:w-106">
+          <div className="relative w-full sm:w-80 md:w-126">
             <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
             <input
               type="text"
@@ -622,7 +671,18 @@ export default function App() {
             />
           </div>
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
+            {/* Count of participants who completed 10 / 10 labs according to syllabus */}
+            <div
+              title="Participants who completed 10 / 10 labs according to syllabus"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] sm:text-xs font-bold whitespace-nowrap shadow-2xs"
+            >
+              <FaCheckCircle className="text-emerald-500 text-[11px] shrink-0" />
+              <span>
+                10/10 Completed: {completedTenCount}
+              </span>
+            </div>
+
             <span className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
               {filteredParticipants.length}{' '}
               {filteredParticipants.length === 1 ? 'Participant' : 'Participants'}

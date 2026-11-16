@@ -229,7 +229,9 @@ export const parseParticipantsFromCsv = (csvText, syllabusLabs = []) => {
 
     return {
       id: `p-${index + 1}`,
-      name: cachedData?.name || name,
+      name: name, // Always use participant name from Google Sheet
+      sheetName: name,
+      cloudProfileName: cachedData?.name || '',
       avatar,
       profileUrl,
       verifiedCount,
