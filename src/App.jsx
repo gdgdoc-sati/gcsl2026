@@ -677,7 +677,7 @@ export default function App() {
               title="Participants who completed 10 / 10 labs according to syllabus"
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] sm:text-xs font-bold whitespace-nowrap shadow-2xs"
             >
-              <FaCheckCircle className="text-emerald-500 text-[11px] shrink-0" />
+               {/* <FaCheckCircle className="text-emerald-500 text-[11px] shrink-0" /> */}
               <span>
                 10/10 Completed: {completedTenCount}
               </span>
