@@ -22,6 +22,15 @@ export const DEFAULT_EVENT_TITLE =
 
 export const DEFAULT_SYLLABUS_LABS = [];
 
+/**
+ * Helper to extract unique profile ID from Google Cloud Skills Boost profile URL
+ */
+export const extractProfileId = (url) => {
+  if (!url) return '';
+  const match = String(url).match(/public_profiles\/([a-zA-Z0-9-_]+)/i);
+  return match ? match[1].toLowerCase() : '';
+};
+
 // LocalStorage cache key and TTL (1 hour)
 const CACHE_PREFIX = 'gcsl_pdata_v2_';
 const CACHE_TTL_MS = 60 * 60 * 1000;
@@ -203,7 +212,14 @@ export const parseParticipantsFromCsv = (csvText, syllabusLabs = []) => {
       profileUrl = `https://${profileUrl}`;
     }
 
-    // 3. Check persistent cached profile data
+    // 3. Check for any credit / code status column in the Google Sheet (if facilitators add one)
+    const creditsColKey = keys.find((k) =>
+      /credit|claimed|redeem|code|token|status|enroll/i.test(k) && !/course|lab|syllabus/i.test(k)
+    );
+    const rowCreditsVal = creditsColKey ? (row[creditsColKey] || '').toLowerCase() : '';
+    const sheetClaimed = /yes|true|claimed|done|redeemed|1|earned/i.test(rowCreditsVal);
+
+    // 4. Check persistent cached profile data
     const cachedData = getCachedProfile(profileUrl);
 
     let completedLabs = [];
@@ -211,6 +227,18 @@ export const parseParticipantsFromCsv = (csvText, syllabusLabs = []) => {
     let percentage = 0;
     let liveVerified = false;
     let totalProfileBadges = 0;
+    let points = cachedData?.points || 0;
+    let league = cachedData?.league || '';
+    let hasTourLab = Boolean(
+      cachedData?.hasTourLab ||
+      (cachedData?.badges || []).some((b) => /tour of google cloud/i.test(b.title))
+    );
+    let hasClaimedCredits = Boolean(
+      sheetClaimed ||
+      cachedData?.hasClaimedCredits ||
+      points > 0 ||
+      hasTourLab
+    );
 
     if (cachedData && Array.isArray(cachedData.badges)) {
       const matchRes = matchProfileBadgesToSyllabus(cachedData.badges, labs);
@@ -219,6 +247,20 @@ export const parseParticipantsFromCsv = (csvText, syllabusLabs = []) => {
       percentage = matchRes.percentage;
       liveVerified = true;
       totalProfileBadges = cachedData.totalBadgesCount || cachedData.badges.length;
+      points = cachedData.points || points;
+      league = cachedData.league || league;
+      hasTourLab = Boolean(
+        hasTourLab ||
+        (cachedData.badges || []).some((b) => /tour of google cloud/i.test(b.title))
+      );
+      hasClaimedCredits = Boolean(
+        sheetClaimed ||
+        cachedData.hasClaimedCredits ||
+        verifiedCount > 0 ||
+        totalProfileBadges > 0 ||
+        points > 0 ||
+        hasTourLab
+      );
     }
 
     const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(
@@ -239,6 +281,10 @@ export const parseParticipantsFromCsv = (csvText, syllabusLabs = []) => {
       percentage,
       liveVerified,
       totalProfileBadges,
+      points,
+      league,
+      hasTourLab,
+      hasClaimedCredits,
     };
   });
 };
@@ -348,6 +394,18 @@ export const parseProfileHtml = (html, profileUrl) => {
     }
   }
 
+  // Extract league points, league tier, and tour lab completion to identify credit activation
+  const pointsMatch =
+    html.match(/<strong>\s*([0-9,]+)\s*points\s*<\/strong>/i) ||
+    html.match(/([0-9,]+)\s*points/i);
+  const points = pointsMatch ? parseInt(pointsMatch[1].replace(/,/g, ''), 10) || 0 : 0;
+
+  const leagueMatch = html.match(/<h2[^>]*class=["'][^"']*ql-headline-medium[^"']*["'][^>]*>\s*([^<]+)\s*<\/h2>/i);
+  const league = leagueMatch && leagueMatch[1] ? leagueMatch[1].trim() : '';
+
+  const hasTourLab = /tour of google cloud/i.test(html);
+  const hasClaimedCredits = badges.length > 0 || hasTourLab || points > 0;
+
   return {
     success: true,
     profileUrl,
@@ -355,6 +413,10 @@ export const parseProfileHtml = (html, profileUrl) => {
     avatar,
     totalBadgesCount: badges.length,
     badges,
+    points,
+    league,
+    hasTourLab,
+    hasClaimedCredits,
   };
 };
 

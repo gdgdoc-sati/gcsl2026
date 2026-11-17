@@ -180,6 +180,18 @@ export default async function handler(req, res) {
       }
     }
 
+    // Extract league points, league tier, and tour lab completion to identify credit activation
+    const pointsMatch =
+      html.match(/<strong>\s*([0-9,]+)\s*points\s*<\/strong>/i) ||
+      html.match(/([0-9,]+)\s*points/i);
+    const points = pointsMatch ? parseInt(pointsMatch[1].replace(/,/g, ''), 10) || 0 : 0;
+
+    const leagueMatch = html.match(/<h2[^>]*class=["'][^"']*ql-headline-medium[^"']*["'][^>]*>\s*([^<]+)\s*<\/h2>/i);
+    const league = leagueMatch && leagueMatch[1] ? leagueMatch[1].trim() : '';
+
+    const hasTourLab = /tour of google cloud/i.test(html);
+    const hasClaimedCredits = badges.length > 0 || hasTourLab || points > 0;
+
     const result = {
       success: true,
       profileUrl: cleanUrl,
@@ -187,6 +199,10 @@ export default async function handler(req, res) {
       avatar,
       totalBadgesCount: badges.length,
       badges,
+      points,
+      league,
+      hasTourLab,
+      hasClaimedCredits,
     };
 
     // Save to memory cache

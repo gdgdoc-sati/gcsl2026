@@ -12,6 +12,7 @@ import {
   FaRoute,
   FaGithub,
   FaCheckCircle,
+  FaCoins,
 } from 'react-icons/fa';
 import {
   DEFAULT_PARTICIPANT_SHEET_URL,
@@ -20,6 +21,7 @@ import {
   DEFAULT_GITHUB_SCRIPTS_URL,
   DEFAULT_EVENT_TITLE,
   convertToCsvUrl,
+  extractProfileId,
   parseParticipantsFromCsv,
   parseSyllabusFromCsv,
   fetchCloudProfileRealtime,
@@ -43,7 +45,7 @@ const STORAGE_KEY_VIEW_MODE = 'gcsl_view_mode_preference_v1';
 // Helper to read initial URL query parameters safely (q and sort only, no view)
 const readInitialUrlState = () => {
   if (typeof window === 'undefined') {
-    return { q: '', sort: 'BADGES_DESC' };
+    return { q: '', sort: 'BADGES_MOST' };
   }
   try {
     const params = new URLSearchParams(window.location.search);
@@ -53,11 +55,11 @@ const readInitialUrlState = () => {
     const sort =
       rawSort === 'NAME_ASC' || rawSort === 'NAME'
         ? 'NAME_ASC'
-        : 'BADGES_DESC';
+        : 'BADGES_MOST';
 
     return { q, sort };
   } catch {
-    return { q: '', sort: 'BADGES_DESC' };
+    return { q: '', sort: 'BADGES_MOST' };
   }
 };
 
@@ -86,7 +88,7 @@ export default function App() {
 
   // Search & Sort states synchronized with URL query params
   const [searchQuery, setSearchQuery] = useState(initialUrlState.q);
-  const [sortBy, setSortBy] = useState(initialUrlState.sort); // 'BADGES_DESC' | 'NAME_ASC'
+  const [sortBy, setSortBy] = useState(initialUrlState.sort); // 'BADGES_MOST' | 'NAME_ASC'
 
   // Initialize view mode from localStorage so it persists across refreshes without URL query parameter
   const [viewMode, setViewMode] = useState(() => {
@@ -347,6 +349,20 @@ export default function App() {
           const profileData = await fetchCloudProfileRealtime(p.profileUrl, forceRefresh);
           if (profileData && profileData.success) {
             const matchRes = matchProfileBadgesToSyllabus(profileData.badges || [], currentLabs);
+            const hasTour = Boolean(
+              profileData.hasTourLab ||
+              (profileData.badges || []).some((b) => /tour of google cloud/i.test(b.title))
+            );
+            const totalBadges = profileData.totalBadgesCount || profileData.badges?.length || 0;
+            const points = profileData.points || 0;
+            const hasClaimedCredits = Boolean(
+              profileData.hasClaimedCredits ||
+              matchRes.verifiedCount > 0 ||
+              totalBadges > 0 ||
+              points > 0 ||
+              hasTour
+            );
+
             setParticipants((prev) => {
               const updated = prev.map((item) => {
                 if (item.id === p.id || item.profileUrl === p.profileUrl) {
@@ -359,8 +375,10 @@ export default function App() {
                     completedLabs: matchRes.completedLabs,
                     verifiedCount: matchRes.verifiedCount,
                     percentage: matchRes.percentage,
-                    totalProfileBadges:
-                      profileData.totalBadgesCount || profileData.badges?.length || 0,
+                    totalProfileBadges: totalBadges,
+                    points,
+                    hasTourLab: hasTour,
+                    hasClaimedCredits,
                     liveVerified: true,
                   };
                 }
@@ -455,6 +473,15 @@ export default function App() {
             verifiedCount: existing.verifiedCount || 0,
             percentage: existing.percentage || 0,
             totalProfileBadges: existing.totalProfileBadges || 0,
+            points: existing.points || 0,
+            hasTourLab: existing.hasTourLab || false,
+            hasClaimedCredits: Boolean(
+              existing.hasClaimedCredits ||
+              existing.verifiedCount > 0 ||
+              existing.totalProfileBadges > 0 ||
+              (existing.points || 0) > 0 ||
+              existing.hasTourLab
+            ),
             liveVerified: true,
           };
         }
@@ -495,21 +522,46 @@ export default function App() {
     }
   }, [participants.length, syllabusLabs.length, syncLiveProfiles, syncStatus.syncing]);
 
-  // Filtered and Sorted participants
+  // Filtered and Sorted participants (supports name, cloudProfileName, profileUrl, and profile UUID)
   const filteredParticipants = useMemo(() => {
     return participants
       .filter((p) => {
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase().trim();
-          return (
+
+          // 1. Participant name from sheet or Cloud profile display name
+          const matchName =
             (p.name && p.name.toLowerCase().includes(q)) ||
-            (p.cloudProfileName && p.cloudProfileName.toLowerCase().includes(q))
-          );
+            (p.cloudProfileName && p.cloudProfileName.toLowerCase().includes(q));
+
+          if (matchName) return true;
+
+          // 2. Cloud Skills Boost profile URL or profile UUID
+          if (p.profileUrl) {
+            const normProfileUrl = p.profileUrl.toLowerCase();
+            // Direct substring match on the full URL
+            if (normProfileUrl.includes(q)) return true;
+
+            // Profile ID / UUID matching across different domain representations
+            const queryId = extractProfileId(q);
+            const participantProfileId = extractProfileId(p.profileUrl);
+
+            if (queryId && participantProfileId && queryId === participantProfileId) {
+              return true;
+            }
+
+            // User pasted a raw UUID or partial UUID (e.g. 1e35a5cb...)
+            if (participantProfileId && q.length >= 6 && participantProfileId.includes(q)) {
+              return true;
+            }
+          }
+
+          return false;
         }
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === 'BADGES_DESC') {
+        if (sortBy === 'BADGES_MOST') {
           return b.verifiedCount - a.verifiedCount;
         }
         if (sortBy === 'NAME_ASC') {
@@ -525,6 +577,18 @@ export default function App() {
   };
 
   const totalLabsCount = syllabusLabs.length;
+
+  // Count of participants who claimed 9 credits + 200/400 credits (enrollment code / active subscription)
+  const creditsClaimedCount = useMemo(() => {
+    return participants.filter(
+      (p) =>
+        p.hasClaimedCredits ||
+        (p.verifiedCount || 0) > 0 ||
+        (p.totalProfileBadges || 0) > 0 ||
+        (p.points || 0) > 0 ||
+        p.hasTourLab
+    ).length;
+  }, [participants]);
 
   // Count of participants who completed 10 / 10 labs according to syllabus
   const completedTenCount = useMemo(() => {
@@ -569,7 +633,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-google-green border border-google-blue/20 text-[11px] sm:text-xs font-bold uppercase tracking-wider mb-4"
           >
-            <span>Study Jam Leaderboard</span>
+            <span>Study Learn Leaderboard</span>
           </motion.div>
 
           <motion.h1
@@ -587,7 +651,7 @@ export default function App() {
             transition={{ delay: 0.1 }}
             className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed"
           >
-            Track participant syllabus badges and lab completions for this Study Jam in real time.
+            Track participant syllabus badges and lab completions for this Study Learn in real time.
           </motion.p>
 
           {/* Action buttons inside header */}
@@ -660,11 +724,11 @@ export default function App() {
         {/* Sticky Controls Bar */}
         <div className="sticky top-[34px] z-20 flex flex-col sm:flex-row items-center justify-between gap-2 py-1.5 px-3 sm:px-4 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-md mb-6">
           {/* Search Input synchronized with URL ?q= */}
-          <div className="relative w-full sm:w-80 md:w-126">
+          <div className="relative w-full sm:w-72 md:w-80 lg:w-96 flex-1">
             <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
             <input
               type="text"
-              placeholder="Search participants by name..."
+              placeholder="Search by name or profile URL..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 focus:outline-none focus:border-google-blue text-xs text-slate-900 dark:text-white placeholder-slate-400 transition-colors"
@@ -672,15 +736,21 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
+            {/* Count of participants who claimed their 9 & 200/400 credits */}
+            <div
+              title="Participants who redeemed the 9 credits code from Google Cloud Edu email and unlocked 200/400 credits subscription"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60 text-[11px] sm:text-xs font-bold whitespace-nowrap shadow-2xs"
+            >
+              <FaCoins className="text-amber-500 text-[11px] shrink-0" />
+              <span>Credits Claimed: {creditsClaimedCount}</span>
+            </div>
+
             {/* Count of participants who completed 10 / 10 labs according to syllabus */}
             <div
               title="Participants who completed 10 / 10 labs according to syllabus"
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] sm:text-xs font-bold whitespace-nowrap shadow-2xs"
             >
-               {/* <FaCheckCircle className="text-emerald-500 text-[11px] shrink-0" /> */}
-              <span>
-                10/10 Completed: {completedTenCount}
-              </span>
+              <span>10/10 Completed: {completedTenCount}</span>
             </div>
 
             <span className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
@@ -692,12 +762,12 @@ export default function App() {
             <div className="relative flex-1 sm:flex-initial">
               <button
                 onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
-                className="w-full sm:w-44 flex items-center justify-between px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs font-medium text-slate-700 dark:text-slate-200 hover:border-google-blue transition-colors cursor-pointer"
+                className="w-32 sm:w-44 flex items-center justify-between px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs font-medium text-slate-700 dark:text-slate-200 hover:border-google-blue transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-1.5 truncate">
-                  <FaSortAmountDown className="text-google-blue text-xs shrink-0" />
+                  {/* <FaSortAmountDown className="text-google-blue text-xs shrink-0" /> */}
                   <span className="truncate">
-                    {sortBy === 'BADGES_DESC' ? 'Most Badges' : 'Name (A-Z)'}
+                    {sortBy === 'BADGES_MOST' ? 'Most Badges' : 'Name (A-Z)'}
                   </span>
                 </div>
                 <FaChevronDown
@@ -715,7 +785,7 @@ export default function App() {
                   />
                   <div className="absolute right-0 mt-2 w-full sm:w-44 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700/60 py-1.5 z-[100]">
                     {[
-                      { key: 'BADGES_DESC', label: 'Most Badges Completed' },
+                      { key: 'BADGES_MOST', label: 'Most Badges Completed' },
                       { key: 'NAME_ASC', label: 'Name (A to Z)' },
                     ].map((opt) => (
                       <button
@@ -785,7 +855,7 @@ export default function App() {
               <table className="w-full text-left text-xs sm:text-sm">
                 <thead>
                   <tr className="bg-slate-50/70 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    <th className="py-3 px-3 sm:px-4 w-14 sm:w-16">S. No.</th>
+                    <th className="py-3 px-3 sm:px-4 w-14 sm:w-18">S. No.</th>
                     <th className="py-3 px-4 min-w-[240px]">Participant</th>
                     <th className="py-3 px-4 min-w-[200px]">Syllabus Badges Completed</th>
                     <th className="py-3 px-4 text-right">Cloud Profile</th>
@@ -818,9 +888,22 @@ export default function App() {
                             className="w-10 h-10 rounded-full object-cover p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0 shadow-xs"
                             loading="lazy"
                           />
-                          <p className="font-bold text-slate-900 dark:text-white group-hover:text-google-blue transition-colors truncate">
-                            {p.name}
-                          </p>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-bold text-slate-900 dark:text-white group-hover:text-google-blue transition-colors truncate">
+                                {p.name}
+                              </p>
+                              {(p.hasClaimedCredits || (p.verifiedCount || 0) > 0 || (p.totalProfileBadges || 0) > 0 || (p.points || 0) > 0 || p.hasTourLab) && (
+                                <span
+                                  title="Credits claimed / active subscription"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/50 text-[10px] font-bold shrink-0"
+                                >
+                                  <FaCoins size={9} />
+                                  <span>Claimed</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </td>
 
@@ -912,10 +995,21 @@ export default function App() {
                       className="w-12 h-12 rounded-full object-cover p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0 shadow-xs"
                       loading="lazy"
                     />
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-google-blue transition-colors truncate">
-                        {p.name}
-                      </h4>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-google-blue transition-colors truncate">
+                          {p.name}
+                        </h4>
+                        {(p.hasClaimedCredits || (p.verifiedCount || 0) > 0 || (p.totalProfileBadges || 0) > 0 || (p.points || 0) > 0 || p.hasTourLab) && (
+                          <span
+                            title="Credits claimed / active subscription"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/50 text-[10px] font-bold shrink-0"
+                          >
+                            <FaCoins size={9} />
+                            <span>Credits</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

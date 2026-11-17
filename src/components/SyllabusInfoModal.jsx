@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaBookOpen, FaTimes, FaInfoCircle, FaExternalLinkAlt } from 'react-icons/fa';
 import { DEFAULT_SYLLABUS_LABS, DEFAULT_SYLLABUS_SOURCE_URL } from '../data/cloudStudySyllabus';
@@ -7,23 +7,44 @@ export const SyllabusInfoModal = ({ syllabusLabs, sourceUrl, onClose }) => {
   const labs = Array.isArray(syllabusLabs) && syllabusLabs.length > 0 ? syllabusLabs : DEFAULT_SYLLABUS_LABS;
   const sourceSheet = sourceUrl || DEFAULT_SYLLABUS_SOURCE_URL;
 
+  // Lock background screen scrolling while syllabus pop-up is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm overscroll-contain"
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col overflow-hidden overscroll-contain"
       >
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-2">
             <FaBookOpen className="text-google-blue text-xl" />
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                Study Jam Syllabus Labs ({labs.length} Courses)
+                Study Learn Syllabus Labs ({labs.length} Courses)
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Required courses and skill badges for this program
+                Complete only <b>challange lab</b> from each lab
               </p>
             </div>
           </div>
@@ -53,7 +74,7 @@ export const SyllabusInfoModal = ({ syllabusLabs, sourceUrl, onClose }) => {
           </div>
         )}
 
-        <div className="overflow-y-auto space-y-2 pr-1 flex-1">
+        <div className="overflow-y-auto space-y-2 pr-1 flex-1 overscroll-contain">
           {labs.map((lab, idx) => (
             <div
               key={lab.id || idx}

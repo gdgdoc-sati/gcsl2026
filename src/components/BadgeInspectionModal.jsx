@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaTimes, FaExternalLinkAlt, FaCheckCircle, FaInfoCircle } from 'react-icons/fa';
+import { FaTimes, FaExternalLinkAlt, FaCheckCircle, FaInfoCircle, FaCoins } from 'react-icons/fa';
 import { DEFAULT_SYLLABUS_LABS } from '../data/cloudStudySyllabus';
 
 export const BadgeInspectionModal = ({ participant, syllabusLabs, onClose }) => {
@@ -14,13 +14,34 @@ export const BadgeInspectionModal = ({ participant, syllabusLabs, onClose }) => 
     if (l.title) completedMap.set(l.title, l);
   });
 
+  // Lock background screen scrolling and prevent scroll leakage while pop-up card is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm overscroll-contain"
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col overflow-hidden overscroll-contain"
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
@@ -36,11 +57,30 @@ export const BadgeInspectionModal = ({ participant, syllabusLabs, onClose }) => 
               className="w-12 h-12 rounded-full p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 object-cover shrink-0"
             />
             <div className="min-w-0">
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 truncate">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
                 <span className="truncate">{name}</span>
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-google-blue/10 text-google-blue font-bold shrink-0">
                   {verifiedCount} / {labs.length} Labs
                 </span>
+                {(participant.hasClaimedCredits || verifiedCount > 0 || totalProfileBadges > 0 || (participant.points || 0) > 0 || participant.hasTourLab) ? (
+                  <span
+                    title="Claimed enrollment code (9 credits) & activated 200/400 credits subscription"
+                    className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-bold shrink-0 flex items-center gap-1"
+                  >
+                    <FaCoins size={10} className="text-amber-500 shrink-0" />
+                    <span>9 &amp; 200 Credits Claimed</span>
+                    {/* {(participant.points || 0) > 0 && (
+                      <span className="opacity-80">({participant.points} pts)</span>
+                    )} */}
+                  </span>
+                ) : (
+                  <span
+                    title="Has not redeemed the 9 credits enrollment code yet"
+                    className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 font-medium shrink-0 flex items-center gap-1"
+                  >
+                    <span>Credits Pending</span>
+                  </span>
+                )}
               </h3>
               {cloudProfileName && cloudProfileName.trim().toLowerCase() !== name.trim().toLowerCase() && (
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
@@ -73,7 +113,7 @@ export const BadgeInspectionModal = ({ participant, syllabusLabs, onClose }) => 
           <div className="flex items-center gap-2">
             <FaInfoCircle className="text-google-blue shrink-0" size={13} />
             <span>
-              Real-time verified from Google Cloud Skills Boost profile against this Study Jam&apos;s syllabus.
+              Real-time verified from Google Cloud Skills Boost profile against this Study Learn&apos;s syllabus.
             </span>
           </div>
           {totalProfileBadges > 0 && (
@@ -84,7 +124,7 @@ export const BadgeInspectionModal = ({ participant, syllabusLabs, onClose }) => 
         </div>
 
         {/* Syllabus Badges Checklist */}
-        <div className="overflow-y-auto space-y-2 pr-1 flex-1">
+        <div className="overflow-y-auto space-y-2 pr-1 flex-1 overscroll-contain">
           {labs.map((lab, idx) => {
             const completedLab = completedMap.get(lab.id) || completedMap.get(lab.title);
             const isCompleted = !!completedLab;
